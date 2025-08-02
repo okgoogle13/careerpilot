@@ -1,0 +1,27 @@
+# Firebase Core Libraries
+firebase-functions
+firebase-admin
+
+# Genkit and Google AI
+google-cloud-genkit
+google-generativeai
+
+# Vector Database Client
+pinecone-client
+
+# Google API Libraries (for Docs, Gmail, Calendar, and Secrets)
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+google-cloud-secret-manager
+
+# Document Parsing Utilities
+pypdf
+python-docx
+
+# Web Scraping Utilities
+requests
+beautifulsoup4
+
+# Environment Variable Management (Good Practice)
+python-dotenv

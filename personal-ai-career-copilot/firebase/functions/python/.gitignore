@@ -1,0 +1,48 @@
+gitignore
+# Byte-code files
+*.pyc
+__pycache__/
+
+# Virtual environment
+venv/
+.venv/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+eggs/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# C extensions
+*.so
+
+# Pytest cache
+.pytest_cache
+
+# Sphinx documentation
+docs/_build/
+
+# Jupyter notebooks
+.ipynb_checkpoints
+
+# IPython history
+.ipython_history
+
+# IDE specific files
+.idea/
+.vscode/
+*.iml
+*.project
+*.log
+
+# Operating System files
+.DS_Store
+Thumbs.db
+
+# Custom ignores
