@@ -1,35 +1,43 @@
-let
- pkgs = import <nixpkgs> {};
-in
- {
- flake = {
- devcontainer = {
-      # Workspace lifecycle hooks
-          workspace = {
-            # Runs when a workspace is first created
-            onCreate = {
-              npm-install = "npm ci --no-audit --prefer-offline --no-progress --timing";
-              default.openFiles = [ "README.md" "index.ts" ];
-            };
-            # Runs when the workspace is (re)started
-            onStart = {
-              run-server = "if [ -z \"\${AIzaSyBiS3EMRKcddSfGvBZr7MG3Or1tWQdNdlI}\" ]; then \\
- echo 'No Gemini API key detected, enter a Gemini API key from https://aistudio.google.com/app/apikey:' && \\
-                read -s GOOGLE_GENAI_API_KEY && \\
-                echo 'You can also add to .idx/dev.nix to automatically add to your workspace'
-                export GOOGLE_GENAI_API_KEY; \\
-                fi && \\
-                npm run genkit:dev";
-            };
-          };
-        };
-        environment.variables = {
-          GOOGLE_GENAI_API_KEY = "AIzaSyBiS3EMRKcddSfGvBZr7MG3Or1tWQdNdlI";
+{ pkgs, ... }: {
+  # The Nix channel to use.
+  channel = "stable-23.11";
+
+  # A list of packages to make available in your environment.
+  packages = [
+    pkgs.nodejs_20
+    pkgs.flutter
+    pkgs.python311
+    pkgs.python311Packages.pip
+  ];
+
+  # Environment variables that will be available in the workspace.
+  env = {
+    GOOGLE_GENAI_API_KEY = "AIzaSyBiS3EMRKcddSfGvBZr7MG3Or1tWQdNdlI";
+  };
+
+  # IDX-specific configurations
+  idx = {
+    # Enable workspace previews for web applications
+    previews = {
+      enable = true;
+      previews = {
+        web = {
+          command = ["npm" "run" "genkit:dev"];
+          manager = "web";
         };
       };
-      packages = [ 
- pkgs.flutter
-      ];
+    };
+
+    # Workspace lifecycle hooks
+    workspace = {
+      # Commands to run when the workspace is created
+      onCreate = {
+        install-deps = "npm ci --no-audit --prefer-offline --no-progress --timing";
+      };
+      # Commands to run when the workspace starts
+      onStart = {
+        start-dev = "npm run genkit:dev";
+      };
     };
   };
 }

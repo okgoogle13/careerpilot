@@ -1,7 +1,6 @@
 nix
 { pkgs ? import <nixpkgs> {} }:
 
-let
   pythonWithPackages = pkgs.python3.withPackages (p: with p; [
     pip
     virtualenv
