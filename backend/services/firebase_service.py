@@ -44,6 +44,26 @@ class FirebaseService:
             })
         return user_documents
 
+    def delete_document(self, user_id: str, document_id: str):
+        """
+        Deletes a document's metadata from Firestore and the file from Storage.
+        """
+        doc_ref = self.db.collection("users").document(user_id).collection("user_documents").document(document_id)
+        doc = doc_ref.get()
+        if not doc.exists:
+            raise ValueError("Document not found")
+
+        # Delete the file from Cloud Storage
+        storage_path = doc.to_dict().get("original_storage_path")
+        if storage_path:
+            blob = self.storage.blob(storage_path)
+            blob.delete()
+            print(f"Deleted {storage_path} from Cloud Storage")
+
+        # Delete the Firestore document
+        doc_ref.delete()
+        print(f"Deleted document {document_id} from Firestore")
+
     def store_feedback(self, feedback: str, job_description: str, generated_text: str):
         """
         Stores user feedback in a dedicated collection.

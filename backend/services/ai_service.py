@@ -1,6 +1,7 @@
 import json
 import genkit
 from . import config
+import asyncio
 
 class AIService:
     def __init__(self, embedder, generator):
@@ -44,6 +45,39 @@ class AIService:
                 "cover_letter_text": "Error: Could not parse the generated content.",
                 "resume_text": "Error: Could not parse the generated content."
             }
+
+    async def generate_document_content_stream(self, job_description: str, context_docs_text: str):
+        """
+        Generates a cover letter and resume summary using the LLM and streams the response.
+        """
+        prompt = f"""
+        {config.GENERATION_SYSTEM_PROMPT}
+
+        **TARGET JOB DESCRIPTION:**
+        {job_description}
+
+        **RELEVANT EXAMPLES FROM USER'S PAST DOCUMENTS (FOR CONTEXT AND STYLE):**
+        {context_docs_text}
+        """
+
+        llm_response_stream = await genkit.generate(
+            model=self.generator,
+            prompt=prompt,
+            stream=True,
+            config={"response_format": "json"}
+        )
+
+        async for chunk in llm_response_stream:
+            try:
+                # Try to parse the chunk as JSON
+                yield json.loads(chunk.text())
+            except json.JSONDecodeError:
+                # If it's not valid JSON, it's likely a partial string
+                # In a more robust implementation, you would buffer these
+                # and try to parse them together. For now, we'll just
+                # yield the raw text as a chunk.
+                yield {"cover_letter_chunk": chunk.text(), "resume_chunk": ""}
+
 
 # A single, shared instance of the service
 ai_service = AIService(

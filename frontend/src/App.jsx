@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { auth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from './services/firebase';
 import DocumentUpload from './DocumentUpload';
 import GenerationForm from './GenerationForm';
+import DocumentManager from './DocumentManager'; // Import DocumentManager
 import './App.css';
 
 function App() {
@@ -57,6 +58,9 @@ function App() {
         {user ? (
           <>
             <DocumentUpload user={user} />
+            <hr />
+            <DocumentManager user={user} />
+            <hr />
             <GenerationForm user={user} />
           </>
         ) : (
