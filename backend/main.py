@@ -33,9 +33,11 @@ app = FastAPI()
 class GenerationRequest(BaseModel):
     job_description: str
 
+# UPDATE: Add document_url to the response
 class GenerationResponse(BaseModel):
     cover_letter_text: str
     resume_text: str
+    document_url: str
 
 @app.post("/generate", response_model=GenerationResponse)
 async def generate_application_documents(
@@ -43,22 +45,35 @@ async def generate_application_documents(
     user: dict = Depends(get_current_user)
 ):
     """
-    API endpoint to generate application documents (cover letter and resume summary).
+    API endpoint to generate application documents and create a Google Doc.
     """
     try:
         print(f"Starting RAG workflow for user: {user.get('uid')}")
 
-        # 1. Retrieve relevant documents from the vector database
+        # 1. Retrieve relevant documents
         retrieved_docs = vector_db_service.retrieve(request.job_description, k=3)
         context_docs_text = "\n\n---\n\n".join([doc['text'] for doc in retrieved_docs])
 
-        # 2. Generate content with the AI service
+        # 2. Generate content
         generated_content = ai_service.generate_document_content(
             job_description=request.job_description,
             context_docs_text=context_docs_text
         )
 
-        return GenerationResponse(**generated_content)
+        # 3. Create Google Doc with the generated content
+        doc_title = f"Application for {request.job_description[:50]}"
+        document_url = gcp_service.create_google_doc(
+            title=doc_title,
+            cover_letter=generated_content["cover_letter_text"],
+            resume_summary=generated_content["resume_text"]
+        )
+
+        # 4. Return all data in the new response model
+        return GenerationResponse(
+            cover_letter_text=generated_content["cover_letter_text"],
+            resume_text=generated_content["resume_text"],
+            document_url=document_url
+        )
 
     except Exception as e:
         print(f"Error in /generate endpoint: {e}")
@@ -91,6 +106,7 @@ def process_and_embed_document(event: storage_fn.CloudEvent) -> None:
 
         firestore_id = firebase_service.store_document_metadata(user_id, file_path, raw_text)
 
+        # BUG FIX: Corrected variable name from fire_store_id to firestore_id
         vector_db_service.index([{"content": raw_text, "metadata": {"id": firestore_id}}])
 
     except Exception as e:

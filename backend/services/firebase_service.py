@@ -28,6 +28,33 @@ class FirebaseService:
         print(f"Document metadata stored in Firestore with ID: {doc_ref.id}")
         return doc_ref.id
 
+    def get_user_documents(self, user_id: str):
+        """
+        Retrieves a list of documents for a given user.
+        """
+        docs_ref = self.db.collection("users").document(user_id).collection("user_documents")
+        docs = docs_ref.stream()
+        user_documents = []
+        for doc in docs:
+            doc_data = doc.to_dict()
+            user_documents.append({
+                "id": doc.id,
+                "original_storage_path": doc_data.get("original_storage_path"),
+                "created_at": doc_data.get("created_at").isoformat()
+            })
+        return user_documents
+
+    def store_feedback(self, feedback: str, job_description: str, generated_text: str):
+        """
+        Stores user feedback in a dedicated collection.
+        """
+        self.db.collection("generation_feedback").add({
+            "feedback": feedback,
+            "job_description": job_description,
+            "generated_text": generated_text,
+            "created_at": firestore.SERVER_TIMESTAMP
+        })
+
     def download_file_from_storage(self, bucket_name: str, file_path: str) -> bytes:
         """Downloads a file from Firebase Cloud Storage."""
         bucket = storage.bucket(bucket_name)
