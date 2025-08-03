@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
-import { storage } from './firebase'; // Assuming you have a firebase.js file exporting initialized storage
+import { storage } from './services/firebase'; // Corrected import path
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
-function DocumentUpload() {
+function DocumentUpload({ user }) { // Accept user prop
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({});
   const [uploadStatus, setUploadStatus] = useState({});
 
   const handleFileChange = async (event) => {
     const files = Array.from(event.target.files);
-    if (files.length === 0) {
+    if (files.length === 0 || !user) { // Check if user is available
       return;
     }
 
@@ -17,8 +17,7 @@ function DocumentUpload() {
     setUploadProgress({});
     setUploadStatus({});
 
-    // Placeholder for actual user ID from Firebase Auth
-    const userId = 'placeholder_user_id';
+    const userId = user.uid; // Use the actual user ID
 
     const uploadTasks = files.map(file => {
       const storageRef = ref(storage, `user_uploads/${userId}/${file.name}`);
