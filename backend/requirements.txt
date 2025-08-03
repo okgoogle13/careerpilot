@@ -1,0 +1,29 @@
+# FastAPI and ASGI server
+fastapi
+uvicorn[standard]
+
+# Firebase and Google Cloud
+firebase-functions
+firebase-admin
+genkit
+google-generativeai
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+google-cloud-secret-manager
+
+# Vector DB
+pinecone-client
+
+# Document Parsing & Web Scraping
+pypdf
+python-docx
+requests
+beautifulsoup4
+
+# Environment variables
+python-dotenv
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
