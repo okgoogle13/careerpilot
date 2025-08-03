@@ -3,13 +3,15 @@
 #
 # This file contains the primary FastAPI application for the API-first
 # architecture and the background Cloud Functions.
-# ==============================================================================
+# =================================================_
 
 # --- 1. IMPORTS ---
 import asyncio
+import json
 from fastapi import FastAPI, Depends, HTTPException, status
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, List, AsyncGenerator
+from fastapi.responses import StreamingResponse
 
 # Firebase Functions for background tasks
 from firebase_functions import storage_fn, scheduler_fn
@@ -33,39 +35,132 @@ app = FastAPI()
 class GenerationRequest(BaseModel):
     job_description: str
 
-class GenerationResponse(BaseModel):
-    cover_letter_text: str
-    resume_text: str
+class FeedbackRequest(BaseModel):
+    feedback: str
+    job_description: str
+    generated_text: str
 
-@app.post("/generate", response_model=GenerationResponse)
-async def generate_application_documents(
+class DocumentResponse(BaseModel):
+    id: str
+    original_storage_path: str
+    created_at: str
+
+async def generate_and_stream(
+    job_description: str,
+    user: dict
+) -> AsyncGenerator[str, None]:
+    """Generator function for the streaming response."""
+    try:
+        yield "event: message\ndata: Starting RAG workflow...\n\n"
+        
+        # 1. Retrieve relevant documents
+        retrieved_docs = vector_db_service.retrieve(job_description, k=3)
+        context_docs_text = "\n\n---\n\n".join([doc['text'] for doc in retrieved_docs])
+        yield "event: message\ndata: Retrieved relevant documents.\n\n"
+
+        # 2. Generate content stream
+        content_generator = ai_service.generate_document_content_stream(
+            job_description=job_description,
+            context_docs_text=context_docs_text
+        )
+
+        cover_letter_text = ""
+        resume_text = ""
+        async for chunk in content_generator:
+            yield f"event: partial_result\ndata: {json.dumps(chunk)}\n\n"
+            if chunk.get("cover_letter_chunk"):
+                cover_letter_text += chunk["cover_letter_chunk"]
+            if chunk.get("resume_chunk"):
+                resume_text += chunk["resume_chunk"]
+        
+        yield "event: message\ndata: Content generation complete.\n\n"
+        
+        # 3. Create Google Doc with the full generated content
+        doc_title = f"Application for {job_description[:50]}"
+        document_url = gcp_service.create_google_doc(
+            title=doc_title,
+            cover_letter=cover_letter_text,
+            resume_summary=resume_text
+        )
+        yield "event: message\ndata: Created Google Doc.\n\n"
+
+        # 4. Send final result
+        final_data = {
+            "cover_letter_text": cover_letter_text,
+            "resume_text": resume_text,
+            "document_url": document_url
+        }
+        yield f"event: final_result\ndata: {json.dumps(final_data)}\n\n"
+
+    except Exception as e:
+        yield f"event: error\ndata: {str(e)}\n\n"
+
+@app.post("/generate-stream")
+async def generate_application_documents_stream(
     request: GenerationRequest,
     user: dict = Depends(get_current_user)
 ):
     """
-    API endpoint to generate application documents (cover letter and resume summary).
+    API endpoint to generate application documents and stream the response.
+    """
+    return StreamingResponse(generate_and_stream(request.job_description, user), media_type="text/event-stream")
+
+@app.post("/feedback")
+async def receive_.feedback(
+    request: FeedbackRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    API endpoint to receive and store user feedback.
     """
     try:
-        print(f"Starting RAG workflow for user: {user.get('uid')}")
-
-        # 1. Retrieve relevant documents from the vector database
-        retrieved_docs = vector_db_service.retrieve(request.job_description, k=3)
-        context_docs_text = "\n\n---\n\n".join([doc['text'] for doc in retrieved_docs])
-
-        # 2. Generate content with the AI service
-        generated_content = ai_service.generate_document_content(
+        firebase_service.store_feedback(
+            feedback=request.feedback,
             job_description=request.job_description,
-            context_docs_text=context_docs_text
+            generated_text=request.generated_text
         )
-
-        return GenerationResponse(**generated_content)
-
+        return {"message": "Feedback received successfully"}
     except Exception as e:
-        print(f"Error in /generate endpoint: {e}")
+        print(f"Error in /feedback endpoint: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+@app.get("/documents", response_model=List[DocumentResponse])
+async def get_user_documents(user: dict = Depends(get_current_user)):
+    """
+    API endpoint to retrieve a list of user's uploaded documents.
+    """
+    try:
+        user_id = user.get("uid")
+        documents = firebase_service.get_user_documents(user_id)
+        return documents
+    except Exception as e:
+        print(f"Error in /documents endpoint: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.delete("/documents/{document_id}")
+async def delete_user_document(document_id: str, user: dict = Depends(get_current_user)):
+    """
+    API endpoint to delete a user's document.
+    """
+    try:
+        user_id = user.get("uid")
+        firebase_service.delete_document(user_id, document_id)
+        return {"message": "Document deleted successfully"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        print(f"Error in /documents/{document_id} endpoint: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
 
 # --- 4. BACKGROUND CLOUD FUNCTIONS ---
 
@@ -91,6 +186,7 @@ def process_and_embed_document(event: storage_fn.CloudEvent) -> None:
 
         firestore_id = firebase_service.store_document_metadata(user_id, file_path, raw_text)
 
+        # BUG FIX: Corrected variable name from fire_store_id to firestore_id
         vector_db_service.index([{"content": raw_text, "metadata": {"id": firestore_id}}])
 
     except Exception as e:

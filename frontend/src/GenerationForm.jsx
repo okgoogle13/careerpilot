@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { apiService } from './services/api'; // Import the new API service
+// frontend/src/GenerationForm.jsx
 
-function GenerationForm({ user }) { // Receive the user object as a prop
+import React, { useState, useEffect } from 'react';
+import { apiService } from './services/api';
+import ReactMarkdown from 'react-markdown'; // Import for rendering
+import UserFeedback from './UserFeedback'; // Import the new component
+
+function GenerationForm({ user }) {
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState(null);
+  const [generatedContent, setGeneratedContent] = useState({ cover_letter_text: '', resume_text: '' });
+  const [finalContent, setFinalContent] = useState(null);
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
@@ -13,25 +18,53 @@ function GenerationForm({ user }) { // Receive the user object as a prop
       setError("You must be signed in to generate documents.");
       return;
     }
-
     setLoading(true);
-    setGeneratedContent(null);
+    setGeneratedContent({ cover_letter_text: '', resume_text: '' });
+    setFinalContent(null);
     setError(null);
 
     try {
-      // Get the Firebase ID token from the user object
       const token = await user.getIdToken();
-
-      // Call the new API service
-      const data = await apiService.generateDocuments(jobDescription, token);
-
-      setGeneratedContent(data);
-
+      apiService.generateDocumentsStream(
+        jobDescription,
+        token,
+        (data) => {
+            setGeneratedContent(prev => ({
+                cover_letter_text: prev.cover_letter_text + (data.cover_letter_chunk || ''),
+                resume_text: prev.resume_text + (data.resume_chunk || ''),
+            }));
+        },
+        (err) => {
+            setError('Failed to stream generated content.');
+            console.error('Streaming error:', err);
+            setLoading(false);
+        },
+        (finalData) => {
+            setFinalContent(finalData);
+            setLoading(false);
+        }
+      );
     } catch (err) {
-      setError(err.message || 'Failed to generate document. Please try again.');
-      console.error('Error generating document:', err);
-    } finally {
+      setError(err.message || 'Failed to start generation. Please try again.');
+      console.error('Error starting generation:', err);
       setLoading(false);
+    }
+  };
+
+  const handleFeedback = async (feedback) => {
+    if (!user || !finalContent) return;
+    try {
+      const token = await user.getIdToken();
+      await apiService.submitFeedback(
+        feedback,
+        jobDescription,
+        JSON.stringify(finalContent), // Or a more specific part of the content
+        token
+      );
+      alert('Thank you for your feedback!');
+    } catch (err) {
+      console.error('Error submitting feedback:', err);
+      alert('Failed to submit feedback.');
     }
   };
 
@@ -45,7 +78,7 @@ function GenerationForm({ user }) { // Receive the user object as a prop
           <textarea
             id="jobDescription"
             rows="10"
-            cols="80" // Made it wider
+            cols="80"
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
             required
@@ -57,33 +90,35 @@ function GenerationForm({ user }) { // Receive the user object as a prop
         </button>
       </form>
 
-      {error && (
-        <div style={{ color: 'red', marginTop: '1rem' }}>
-          Error: {error}
-        </div>
-      )}
+      {error && <div style={{ color: 'red', marginTop: '1rem' }}>Error: {error}</div>}
 
-      {generatedContent && (
-        <div style={{ marginTop: '2rem' }}>
+      {(generatedContent.cover_letter_text || generatedContent.resume_text) && (
+        <div style={{ marginTop: '2rem', textAlign: 'left', border: '1px solid #ccc', padding: '1rem' }}>
           <h3>Generated Content:</h3>
+          
+          {finalContent && (
+            <div style={{ marginBottom: '1.5rem' }}>
+                <strong>
+                <a href={finalContent.document_url} target="_blank" rel="noopener noreferrer">
+                    Open Your Formatted Google Doc
+                </a>
+                </strong>
+            </div>
+          )}
+
           <div>
-            <h4>Cover Letter</h4>
-            <textarea
-              readOnly
-              rows="15"
-              cols="80"
-              value={generatedContent.cover_letter_text}
-            />
+            <h4>Cover Letter Preview</h4>
+            <div className="markdown-preview">
+              <ReactMarkdown>{generatedContent.cover_letter_text}</ReactMarkdown>
+            </div>
           </div>
           <div style={{ marginTop: '1rem' }}>
-            <h4>Resume Summary</h4>
-            <textarea
-              readOnly
-              rows="8"
-              cols="80"
-              value={generatedContent.resume_text}
-            />
+            <h4>Resume Summary Preview</h4>
+            <div className="markdown-preview">
+              <ReactMarkdown>{generatedContent.resume_text}</ReactMarkdown>
+            </div>
           </div>
+          {finalContent && <UserFeedback onFeedback={handleFeedback} />}
         </div>
       )}
     </div>
