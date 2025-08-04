@@ -66,17 +66,16 @@ class AIService:
             stream=True,
             config={"response_format": "json"}
         )
-
+        buffer = ""
         async for chunk in llm_response_stream:
+            buffer += chunk.text()
             try:
-                # Try to parse the chunk as JSON
-                yield json.loads(chunk.text())
+                result = json.loads(buffer)
+                yield result
+                buffer = ""  # Clear the buffer after a successful parse
             except json.JSONDecodeError:
-                # If it's not valid JSON, it's likely a partial string
-                # In a more robust implementation, you would buffer these
-                # and try to parse them together. For now, we'll just
-                # yield the raw text as a chunk.
-                yield {"cover_letter_chunk": chunk.text(), "resume_chunk": ""}
+                # If it's not a complete JSON object, continue accumulating
+                continue
 
 
 # A single, shared instance of the service

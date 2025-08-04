@@ -106,7 +106,7 @@ async def generate_application_documents_stream(
     return StreamingResponse(generate_and_stream(request.job_description, user), media_type="text/event-stream")
 
 @app.post("/feedback")
-async def receive_.feedback(
+async def receive_feedback(
     request: FeedbackRequest,
     user: dict = Depends(get_current_user)
 ):
@@ -114,7 +114,9 @@ async def receive_.feedback(
     API endpoint to receive and store user feedback.
     """
     try:
+        user_id = user.get("uid")
         firebase_service.store_feedback(
+            user_id=user_id,
             feedback=request.feedback,
             job_description=request.job_description,
             generated_text=request.generated_text
@@ -186,14 +188,13 @@ def process_and_embed_document(event: storage_fn.CloudEvent) -> None:
 
         firestore_id = firebase_service.store_document_metadata(user_id, file_path, raw_text)
 
-        # BUG FIX: Corrected variable name from fire_store_id to firestore_id
         vector_db_service.index([{"content": raw_text, "metadata": {"id": firestore_id}}])
 
     except Exception as e:
         print(f"Error processing document {file_path}: {e}")
 
 @scheduler_fn.on_schedule(schedule="0 */1 * * *")
-def jobScout_scheduled(event: scheduler_fn.ScheduledEvent) -> None:
+def job_scout_scheduled(event: scheduler_fn.ScheduledEvent) -> None:
     """
     Scheduled trigger for the job scout flow.
     This function now uses the refactored GCPService.

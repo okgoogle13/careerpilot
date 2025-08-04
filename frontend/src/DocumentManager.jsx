@@ -5,7 +5,7 @@ import { apiService } from './services/api';
 
 function DocumentManager({ user }) {
   const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ function DocumentManager({ user }) {
   }, [user]);
 
   const fetchDocuments = async () => {
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     try {
       const token = await user.getIdToken();
@@ -25,7 +25,7 @@ function DocumentManager({ user }) {
       setError('Failed to fetch documents.');
       console.error(err);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -50,13 +50,13 @@ function DocumentManager({ user }) {
   return (
     <div>
       <h2>Your Uploaded Documents</h2>
-      {loading && <div>Loading documents...</div>}
+      {isLoading && <div>Loading documents...</div>}
       {error && <div style={{ color: 'red' }}>{error}</div>}
       {documents.length > 0 ? (
         <ul>
           {documents.map((doc) => (
             <li key={doc.id}>
-              {doc.file_name}
+              {doc.original_storage_path.split('/').pop()}
               <button onClick={() => handleDelete(doc.id)} style={{ marginLeft: '1rem' }}>
                 Delete
               </button>
@@ -64,7 +64,7 @@ function DocumentManager({ user }) {
           ))}
         </ul>
       ) : (
-        !loading && <div>You have no uploaded documents.</div>
+        !isLoading && <div>You have no uploaded documents.</div>
       )}
     </div>
   );

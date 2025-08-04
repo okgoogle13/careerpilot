@@ -27,3 +27,7 @@ python-dotenv
 # Authentication
 python-jose[cryptography]
 passlib[bcrypt]
+
+# Testing
+pytest
+pytest-mock

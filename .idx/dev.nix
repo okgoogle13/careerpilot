@@ -12,6 +12,8 @@
 
   # Environment variables that will be available in the workspace.
   env = {
+    # TODO: Move this to a secure secret manager (like Google Secret Manager or a similar service)
+    # and load it as an environment variable instead of hardcoding it.
     GOOGLE_GENAI_API_KEY = "AIzaSyBiS3EMRKcddSfGvBZr7MG3Or1tWQdNdlI";
   };
 

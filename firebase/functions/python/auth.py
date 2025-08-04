@@ -3,11 +3,7 @@ import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
-
-# This is a placeholder. In a real app, you'd get this from your Firebase project settings.
-FIREBASE_PROJECT_ID = "resume-optimiser-467418"
-ALGORITHMS = ["RS256"]
-AUTH_URL = f"https://securetoken.google.com/{FIREBASE_PROJECT_ID}"
+from . import config
 
 # This scheme will look for a token in the Authorization header, e.g., "Bearer <token>"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -58,9 +54,9 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         payload = jwt.decode(
             token,
             key,
-            algorithms=ALGORITHMS,
-            audience=FIREBASE_PROJECT_ID,
-            issuer=AUTH_URL,
+            algorithms=config.ALGORITHMS,
+            audience=config.FIREBASE_PROJECT_ID,
+            issuer=f"https://securetoken.google.com/{config.FIREBASE_PROJECT_ID}",
         )
         return payload
     except JWTError:

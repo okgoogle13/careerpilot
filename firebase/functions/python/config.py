@@ -13,6 +13,11 @@ PINECONE_INDEX_NAME = os.getenv("PINECONE_INDEX_NAME", "career-pilot-index")
 GCP_PROJECT_ID = os.getenv("GCLOUD_PROJECT")
 OAUTH_SECRET_NAME = "job-scout-token"
 
+# Firebase Configuration
+FIREBASE_PROJECT_ID = os.getenv("GCLOUD_PROJECT")
+ALGORITHMS = ["RS256"]
+
+
 # Application-specific prompts
 GENERATION_SYSTEM_PROMPT = """
 You are an expert career document writer for the Australian Community Services sector.
