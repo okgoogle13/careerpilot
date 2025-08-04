@@ -19,7 +19,7 @@ def get_public_keys():
     global _public_keys_cache
     if not _public_keys_cache or _public_keys_cache.get("expires", 0) < time.time():
         try:
-            response = requests.get(f"https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com")
+            response = requests.get("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com")
             response.raise_for_status()
             keys = response.json()
             # The 'expires' time is in the Cache-Control header, e.g., "max-age=21088"
