@@ -1,79 +1,142 @@
-import { getAuth, getIdToken } from 'firebase/auth';
+// frontend/src/services/api.js
 
-const API_BASE_URL = 'http://localhost:5001/your-project-id/us-central1/api'; // Replace with your actual project ID
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
-const getAuthToken = async () => {
-  const auth = getAuth();
-  const user = auth.currentUser;
-  if (user) {
-    return await getIdToken(user);
-  }
-  return null;
-};
+export const apiService = {
+  /**
+   * Generates documents by streaming the response.
+   * @param {string} jobDescription - The job description.
+   * @param {string} token - The user's Firebase ID token.
+   * @param {function} onData - Callback for each data chunk.
+   * @param {function} onError - Callback for any errors.
+   * @param {function} onComplete - Callback when the stream is complete.
+   */
+  async generateDocumentsStream(jobDescription, token, onData, onError, onComplete) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ job_description: jobDescription, stream: true }),
+      });
 
-export const generateDocumentsStream = async (jobDescription, onData, onComplete, onError) => {
-  const token = await getAuthToken();
-  if (!token) {
-    onError(new Error('User not authenticated'));
-    return;
-  }
+      if (!response.body) {
+        throw new Error("ReadableStream not available");
+      }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/generate-stream`, {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+            if (buffer.length > 0) {
+                 try {
+                    const finalData = JSON.parse(buffer);
+                    onComplete(finalData);
+                } catch (e) {
+                    console.error("Error parsing final JSON chunk:", buffer); // Log the problematic buffer
+                    onError(new Error("Failed to parse final JSON from stream."));
+                }
+            }
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete JSON objects from the buffer
+        let boundary = buffer.lastIndexOf('\n');
+        if (boundary !== -1) {
+            let chunk = buffer.substring(0, boundary);
+            buffer = buffer.substring(boundary + 1);
+
+            try {
+                const parsed = JSON.parse(chunk);
+                onData(parsed);
+            } catch (e) {
+                console.error("Error parsing JSON chunk:", chunk);
+                // Don't throw an error, just log it and continue
+                // onError(new Error("Failed to parse JSON from stream."));
+            }
+        }
+      }
+
+    } catch (err) {
+      console.error("Streaming fetch failed:", err);
+      onError(err);
+    }
+  },
+
+  /**
+   * Submits feedback for a generated document.
+   * @param {string} feedback - The user's feedback ("good" or "bad").
+   * @param {string} jobDescription - The job description used for generation.
+   * @param {string} generatedContent - The generated content.
+   * @param {string} token - The user's Firebase ID token.
+   * @returns {Promise<any>} - The response from the server.
+   */
+  async submitFeedback(feedback, jobDescription, generatedContent, token) {
+    const response = await fetch(`${API_BASE_URL}/feedback`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ job_description: jobDescription }),
+      body: JSON.stringify({
+        feedback,
+        job_description: jobDescription,
+        generated_content: generatedContent,
+      }),
     });
 
-    if (!response.body) {
-      throw new Error('Response body is null');
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to submit feedback.');
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    return response.json();
+  },
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
+  /**
+   * Gets the user's documents.
+   * @param {string} token - The user's Firebase ID token.
+   * @returns {Promise<any>} - The user's documents.
+   */
+  async getDocuments(token) {
+    const response = await fetch(`${API_BASE_URL}/documents`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
 
-      buffer += decoder.decode(value, { stream: true });
-
-      // Process complete server-sent events
-      const events = buffer.split('\n\n');
-      buffer = events.pop() || ''; // Keep the last, possibly incomplete event in the buffer
-
-      for (const event of events) {
-        if (event.startsWith('event: partial_result\ndata: ')) {
-          const dataString = event.substring('event: partial_result\ndata: '.length);
-          try {
-            const data = JSON.parse(dataString);
-            onData(data);
-          } catch (error) {
-            console.error('Failed to parse partial result:', error);
-          }
-        } else if (event.startsWith('event: final_result\ndata: ')) {
-          const dataString = event.substring('event: final_result\ndata: '.length);
-          try {
-            const data = JSON.parse(dataString);
-            onComplete(data);
-          } catch (error) {
-            console.error('Failed to parse final result:', error);
-          }
-        } else if (event.startsWith('event: message\ndata: ')) {
-          // You can handle message events if needed
-        } else if (event.startsWith('event: error\ndata: ')) {
-          const errorMsg = event.substring('event: error\ndata: '.length);
-          onError(new Error(errorMsg));
-        }
-      }
+    if (!response.ok) {
+      throw new Error('Failed to fetch documents.');
     }
-  } catch (error) {
-    onError(error);
-  }
+
+    return response.json();
+  },
+
+  /**
+   * Deletes a document.
+   * @param {string} documentId - The ID of the document to delete.
+   * @param {string} token - The user's Firebase ID token.
+   * @returns {Promise<any>} - The response from the server.
+   */
+  async deleteDocument(documentId, token) {
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete document.');
+    }
+
+    return response.json();
+  },
 };

@@ -2,17 +2,24 @@
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import GenerationForm from './GenerationForm';
 
 // Mock the apiService to avoid actual API calls during testing
 vi.mock('./services/api', () => ({
   apiService: {
-    generateDocumentsStream: vi.fn(),
+    generateDocumentsStream: vi.fn((...args) => console.log('generateDocumentsStream called with:', ...args)),
     submitFeedback: vi.fn(),
   },
 }));
 
+import { afterEach } from 'vitest';
+
 describe('GenerationForm', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
   const mockUser = {
     getIdToken: async () => 'test-token',
   };
